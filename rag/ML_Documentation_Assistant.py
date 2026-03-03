@@ -13,33 +13,41 @@ import time
 
 load_dotenv()
 
-## Load the Groq API key
 groq_api_key = os.environ['GROQ_API_KEY']
+
+# Official Documentation URLs
+urls = [
+    # Python
+    "https://docs.python.org/3/library/functions.html",
+
+    # PyTorch
+    "https://pytorch.org/docs/stable/generated/torch.nn.Module.html",
+    "https://pytorch.org/docs/stable/generated/torch.optim.Adam.html",
+
+     # Scikit-learn
+    "https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html",
+    "https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html",
+]
 
 # Build Vector Store
 if "vector" not in st.session_state:
-
     st.info("Building documentation index...")
 
-    # Use Hugging Face embeddings
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    all_docs = []
 
-    st.session_state.loader = WebBaseLoader(
-        "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/core/langchain_core/prompts/chat.py"
-    )
-    st.session_state.docs = st.session_state.loader.load()
+    for url in urls:
+        loader = WebBaseLoader(url)
+        docs = loader.load()
+        all_docs.extend(docs)
 
-    st.session_state.text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000, chunk_overlap=200
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200
     )
-    st.session_state.final_documents = (
-        st.session_state.text_splitter.split_documents(st.session_state.docs[:50])
-    )
+    final_documents = text_splitter.split_documents(all_docs)
 
-    st.session_state.vectors = FAISS.from_documents(
-        st.session_state.final_documents, embeddings
-    )
-
+    st.session_state.vectors = FAISS.from_documents(final_documents, embeddings)
     st.success("Vector store built successfully.")
 
 # LLM Setup
@@ -59,6 +67,7 @@ Please provide the most accurate response based on the question
 Question:{input}
 """
 )
+
 document_chain = create_stuff_documents_chain(llm, prompt)
 retriever = st.session_state.vectors.as_retriever()
 retrieval_chain = create_retrieval_chain(retriever, document_chain)

@@ -20,3 +20,4 @@ langchain_huggingface
 scikit-learn
 youtube_transcript_api
 langchain-ollama
+langchain

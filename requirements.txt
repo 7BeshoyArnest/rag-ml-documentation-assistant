@@ -1,4 +1,5 @@
 langchain>=1.2.10
+langchain_classic
 sse_starlette
 bs4
 pypdf

@@ -17,7 +17,6 @@ python-dotenv
 langchain_core
 pydantic
 langchain_huggingface
-scikit-learn
-youtube_transcript_api
-langchain-ollama
 langchain
+huggingface-hub
+transformers

@@ -73,6 +73,64 @@ Install dependencies:
 
 pip install -r requirements.txt
 
-Set your Groq API key:
+Set your Groq and HuggingFace APIs keys:
 
 GROQ_API_KEY=your_groq_api_key_here
+
+HUGGINGFACE_API_KEY=your_hugginface_api_here
+
+Usage
+
+Navigate to the rag folder:
+
+cd rag
+
+Run the Streamlit app:
+
+streamlit run ML_Documentation_Assistant.py
+
+Enter your question in the input box. The app will:
+
+Retrieve relevant document chunks.
+
+Generate an answer using the Groq LLM.
+
+Show the answer and the context used for retrieval.
+
+Screenshots
+
+Interactive Q&A interface
+
+View retrieved documentation chunks
+
+Technologies Used
+
+Python 3.11+
+
+Streamlit – Interactive web app framework
+
+LangChain – LLM orchestration and retrieval chains
+
+FAISS – Vector similarity search
+
+HuggingFace Embeddings – Semantic document embeddings
+
+Groq API – Large language model backend
+
+Contributing
+
+Contributions are welcome! To contribute:
+
+Fork the repository.
+
+Create a feature branch: git checkout -b feature-name.
+
+Commit your changes: git commit -m "Add feature".
+
+Push to the branch: git push origin feature-name.
+
+Open a pull request.
+
+License
+
+This project is MIT licensed – see LICENSE for details.

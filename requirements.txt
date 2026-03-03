@@ -1,3 +1,4 @@
+langchain>=1.2.10
 sse_starlette
 bs4
 pypdf
@@ -17,6 +18,5 @@ python-dotenv
 langchain_core
 pydantic
 langchain_huggingface
-langchain
 huggingface-hub
 transformers

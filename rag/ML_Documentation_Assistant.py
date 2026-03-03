@@ -1,150 +1,81 @@
 import streamlit as st
 import os
-import time
-from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-
 from langchain_groq import ChatGroq
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains import create_retrieval_chain
 from langchain_community.vectorstores import FAISS
-
-# Ollama Cloud Client
-from ollama import Client
-
-# Environment Setup
+from langchain.embeddings import HuggingFaceEmbeddings
+from dotenv import load_dotenv
+import time
 
 load_dotenv()
-groq_api_key = os.environ.get("GROQ_API_KEY")  # Still need your Groq API key
-ollama_api_key = st.secrets.get("OLLAMA_API_KEY")  # Ollama Cloud key from Streamlit secrets
 
-# Initialize Ollama Cloud client
-ollama_client = Client(
-    host="https://ollama.com/api",
-    headers={"Authorization": f"Bearer {ollama_api_key}"}
-)
-
-# Custom wrapper for cloud embeddings
-class OllamaCloudEmbeddings:
-    def __init__(self, client, model="all-minilm"):
-        self.client = client
-        self.model = model
-
-    def embed_documents(self, texts):
-        # Send texts to Ollama Cloud embed API
-        body = {"model": self.model, "input": texts}
-        response = self.client._request("POST", "/embed", json=body)
-        return response["embeddings"]  # Return list of vectors
-
-
-# Streamlit Page Setup
-
-st.set_page_config(page_title="ML Documentation Assistant", layout="wide")
-st.title("🚀 ML Documentation Assistant")
-
-st.markdown("""
-Ask questions about:
-- Python built-in functions
-- PyTorch modules
-- Scikit-learn models
-""")
+## Load the Groq API key
+groq_api_key = os.environ['GROQ_API_KEY']
 
 # Build Vector Store
+if "vector" not in st.session_state:
 
-if "vectors" not in st.session_state:
+    st.info("Building documentation index...")
 
-    st.info("Building documentation index... This runs only once.")
+    # Use Hugging Face embeddings
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
-    # Embeddings using Ollama Cloud
-    embeddings = OllamaCloudEmbeddings(ollama_client, model="all-minilm")
+    st.session_state.loader = WebBaseLoader(
+        "https://raw.githubusercontent.com/langchain-ai/langchain/master/libs/core/langchain_core/prompts/chat.py"
+    )
+    st.session_state.docs = st.session_state.loader.load()
 
-    # Carefully selected official documentation pages
-    urls = [
-        # Python
-        "https://docs.python.org/3/library/functions.html",
-        # PyTorch
-        "https://pytorch.org/docs/stable/generated/torch.nn.Module.html",
-        "https://pytorch.org/docs/stable/generated/torch.optim.Adam.html",
-        # Scikit-learn
-        "https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html",
-        "https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html",
-    ]
-
-    loaders = [WebBaseLoader(url) for url in urls]
-
-    docs = []
-    for loader in loaders:
-        docs.extend(loader.load())
-
-    # Clean HTML
-    for doc in docs:
-        soup = BeautifulSoup(doc.page_content, "html.parser")
-        doc.page_content = soup.get_text()
-
-    # Split documents safely
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100
+    st.session_state.text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000, chunk_overlap=200
+    )
+    st.session_state.final_documents = (
+        st.session_state.text_splitter.split_documents(st.session_state.docs[:50])
     )
 
-    final_documents = text_splitter.split_documents(docs)
+    st.session_state.vectors = FAISS.from_documents(
+        st.session_state.final_documents, embeddings
+    )
 
-    # Create FAISS vector store
-    vectors = FAISS.from_documents(final_documents, embeddings)
-
-    st.session_state.vectors = vectors
-    st.session_state.urls = urls
-
-    st.success("Documentation index built successfully.")
+    st.success("Vector store built successfully.")
 
 # LLM Setup
-
+st.title("ChatGroq Demo")
 llm = ChatGroq(
     groq_api_key=groq_api_key,
     model_name="llama-3.3-70b-versatile"
 )
 
-prompt_template = ChatPromptTemplate.from_template(
-"""
-You are an expert Machine Learning Documentation Assistant.
-
-Answer ONLY using the provided documentation context.
-If the answer is not found in the context, say:
-"I cannot find this in the official documentation."
-
-<context>
+prompt = ChatPromptTemplate.from_template(
+    """
+Answer the questions based on the provided context only.
+Please provide the most accurate response based on the question
+<contxt>
 {context}
-</context>
-
-Question: {input}
+<context>
+Question:{input}
 """
 )
-
-document_chain = create_stuff_documents_chain(llm, prompt_template)
-retriever = st.session_state.vectors.as_retriever(search_kwargs={"k": 4})
+document_chain = create_stuff_documents_chain(llm, prompt)
+retriever = st.session_state.vectors.as_retriever()
 retrieval_chain = create_retrieval_chain(retriever, document_chain)
 
 # User Input
-user_prompt = st.text_input("💬 Ask your question:")
+user_prompt = st.text_input("Input your prompt here")
 
 if user_prompt:
     start = time.process_time()
     response = retrieval_chain.invoke({"input": user_prompt})
     elapsed = time.process_time() - start
 
-    st.subheader("📌 Answer")
-    st.write(response["answer"])
+    st.write(response['answer'])
     st.caption(f"⏱ Response time: {elapsed:.2f} seconds")
 
-    with st.expander("🔎 Retrieved Documentation Chunks"):
+    # Show relevant document chunks
+    with st.expander("Document Similarity Search"):
         for i, doc in enumerate(response["context"]):
-            st.markdown(f"**Chunk {i+1}**")
-            st.write(doc.page_content[:1000])
-            st.write("---")
-
-    with st.expander("🌐 Documentation Sources Used"):
-        for url in st.session_state.urls:
-            st.write(url)
+            st.write(doc.page_content)
+            st.write("----------------------------")
